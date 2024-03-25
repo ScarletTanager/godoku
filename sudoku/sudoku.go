@@ -1,14 +1,18 @@
 package sudoku
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 )
 
 type Sudoku struct {
 	SubsetSize int
 	sizeFactor int
-	values     []*GridSquare
+	Values     []*GridSquare
 }
 
 // New returns a Sudoku with all squares set to 0, any square
@@ -20,30 +24,30 @@ func New(size int) *Sudoku {
 	s := &Sudoku{
 		SubsetSize: subsetSize,
 		sizeFactor: size,
-		values:     make([]*GridSquare, subsetSize*subsetSize),
+		Values:     make([]*GridSquare, subsetSize*subsetSize),
 	}
 
-	for i := range s.values {
-		s.values[i] = &GridSquare{}
+	for i := range s.Values {
+		s.Values[i] = &GridSquare{}
 
 		// Initialize the row, column, and subgrid indices
 		j := i / subsetSize
-		k := i % size
-		s.values[i].RowIndex = j
-		s.values[i].ColumnIndex = k
-		s.values[i].SubgridIndex = SubgridIndex(j, k, size)
+		k := i % subsetSize
+		s.Values[i].RowIndex = j
+		s.Values[i].ColumnIndex = k
+		s.Values[i].SubgridIndex = SubgridIndex(j, k, size)
 
 		// Initialize each grid square so that it could potentially contain any value
-		s.values[i].PossibleValues = make(map[int]struct{})
-		for pv := 0; pv < subsetSize; pv++ {
-			s.values[i].PossibleValues[pv] = struct{}{}
+		s.Values[i].PossibleValues = make(map[int]struct{})
+		for pv := 1; pv <= subsetSize; pv++ {
+			s.Values[i].PossibleValues[pv] = struct{}{}
 		}
 	}
 
 	return s
 }
 
-// NewFromRows returns a Sudoku with the values set, any unset
+// NewFromRows returns a Sudoku with the Values set, any unset
 // square has its candidates constrained.
 func NewFromRows(size int, rows [][]int) *Sudoku {
 	s := New(size)
@@ -57,7 +61,7 @@ func NewFromRows(size int, rows [][]int) *Sudoku {
 		}
 
 		for k, val := range row {
-			s.values[(j*s.SubsetSize)+k].Value = val
+			s.Values[(j*s.SubsetSize)+k].Value = val
 		}
 	}
 
@@ -66,9 +70,9 @@ func NewFromRows(size int, rows [][]int) *Sudoku {
 
 // Solved returns true if we have solved the puzzle, false otherwise.
 func (s *Sudoku) Solved() bool {
-	// Does every square have a value?
-	for _, gridSquare := range s.values {
-		if gridSquare.Value == 0 {
+	// Does every square have a legal value?
+	for _, gridSquare := range s.Values {
+		if gridSquare.Value < 1 || gridSquare.Value > 9 {
 			return false
 		}
 	}
@@ -97,7 +101,7 @@ func (s *Sudoku) obeysConstraints() bool {
 // Row returns a Subset containing the squares contained by the
 // column at position k, indexed from 0 at the top to (size^2)-1 at the bottom.
 func (s *Sudoku) Row(j int) Subset {
-	return s.values[j*s.SubsetSize : (j+1)*s.SubsetSize]
+	return s.Values[j*s.SubsetSize : (j+1)*s.SubsetSize]
 }
 
 // Column returns a Subset containing the squares contained by the
@@ -105,7 +109,7 @@ func (s *Sudoku) Row(j int) Subset {
 func (s *Sudoku) Column(k int) Subset {
 	col := make(Subset, s.SubsetSize)
 	for j := 0; j < s.SubsetSize; j++ {
-		col[j] = s.values[k+(j*s.SubsetSize)]
+		col[j] = s.Values[k+(j*s.SubsetSize)]
 	}
 
 	return col
@@ -120,7 +124,7 @@ func (s *Sudoku) Subgrid(l int) Subset {
 	startIndex := ((l - offset) * s.SubsetSize) + (offset * s.sizeFactor)
 	for gri := 0; gri < s.sizeFactor; gri++ {
 		for gci := 0; gci < s.sizeFactor; gci++ {
-			grid[(gri*s.sizeFactor)+gci] = s.values[startIndex+gci+(gri*s.SubsetSize)]
+			grid[(gri*s.sizeFactor)+gci] = s.Values[startIndex+gci+(gri*s.SubsetSize)]
 		}
 	}
 
@@ -131,7 +135,7 @@ func (s *Sudoku) Subgrid(l int) Subset {
 // It then removes val from the PossibleValues for every other square
 // within the same row, column, or gridsquare.
 func (s *Sudoku) Set(j, k, val int) error {
-	gridSquare := s.values[(j*s.SubsetSize)+k]
+	gridSquare := s.Values[(j*s.SubsetSize)+k]
 
 	if _, ok := gridSquare.PossibleValues[val]; !ok {
 		pvs := make([]int, 0)
@@ -155,6 +159,32 @@ func (s *Sudoku) Set(j, k, val int) error {
 	return nil
 }
 
+// String prints the string representation of the sudoku
+func (s *Sudoku) String() string {
+	return ""
+}
+
+// PrintCurrent prints the current state of the sudoku
+func (s *Sudoku) Current() string {
+	var current strings.Builder
+
+	for i := 0; i < s.SubsetSize; i++ {
+		r := s.Row(i)
+		for _, gs := range r {
+			current.WriteString(gs.String() + " ")
+		}
+		current.WriteString("\n")
+	}
+
+	return current.String()
+}
+
+// Hash returns the sha256 checksum of the sudoku's current state
+func (s *Sudoku) Hash() [sha256.Size]byte {
+	b, _ := json.Marshal(s)
+	return sha256.Sum256(b)
+}
+
 // SubgridIndex returns the index of the subgrid containing the square at
 // row j, column k, given a sizexsize grid of sizexsize subgrids, with the
 // subgrids indexed starting with 0 at the top left, left to right, top to bottom.
@@ -169,17 +199,44 @@ func SquareIndexInSubgrid(j, k, size int) int {
 	return ((j % size) * size) + (k % size)
 }
 
+type Possibles map[int]struct{}
+
+func (p Possibles) MarshalJSON() ([]byte, error) {
+	pvs := make([]int, 0)
+	for pv, _ := range p {
+		pvs = append(pvs, pv)
+	}
+	sort.Ints(pvs)
+	return json.Marshal(pvs)
+}
+
+func (p *Possibles) UnmarshalJSON(b []byte) error {
+	var (
+		pvs []int
+	)
+
+	if err := json.Unmarshal(b, &pvs); err != nil {
+		return err
+	}
+
+	for _, pv := range pvs {
+		(*p)[pv] = struct{}{}
+	}
+
+	return nil
+}
+
 // GridSquare is an individual square within the overall grid.  Each
 // Sudoku will contain n^4 squares (where the Sudoku is composed of n^2 nxn subgrids).
 type GridSquare struct {
 	Value          int
-	PossibleValues map[int]struct{}
+	PossibleValues Possibles
 	RowIndex       int
 	ColumnIndex    int
 	SubgridIndex   int
 }
 
-// Constrain limits the candidate values for the square to those contained
+// Constrain limits the candidate Values for the square to those contained
 // by possibles
 func (gs *GridSquare) Constrain(possibles []int) {
 	candidates := make(map[int]struct{})
@@ -200,6 +257,27 @@ func (gs *GridSquare) Constrain(possibles []int) {
 // RemoveCandidate removes the value exclusion from PossibleValues
 func (gs *GridSquare) RemoveCandidate(exclusion int) {
 	delete(gs.PossibleValues, exclusion)
+}
+
+func (gs *GridSquare) String() string {
+	if gs.hasLegalValue() {
+		return fmt.Sprintf("**%d**", gs.Value)
+	}
+
+	pvList := make([]int, 0)
+	for pv, _ := range gs.PossibleValues {
+		pvList = append(pvList, pv)
+	}
+
+	return fmt.Sprintf("%v", pvList)
+}
+
+func (gs *GridSquare) Current() string {
+	return ""
+}
+
+func (gs *GridSquare) hasLegalValue() bool {
+	return gs.Value > 0 && gs.Value < 10
 }
 
 type Subset []*GridSquare

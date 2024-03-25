@@ -41,6 +41,15 @@ var _ = Describe("Sudoku", func() {
 				}
 			}
 		})
+
+		It("Assigns the correct column indices", func() {
+			s = sudoku.New(3)
+			for j := 0; j < s.SubsetSize; j++ {
+				for k := 0; k < s.SubsetSize; k++ {
+					Expect(s.Row(j)[k].ColumnIndex).To(Equal(k))
+				}
+			}
+		})
 	})
 
 	Describe("SubgridIndex", func() {
