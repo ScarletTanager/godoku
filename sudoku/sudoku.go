@@ -55,13 +55,14 @@ func NewFromRows(size int, rows [][]int) *Sudoku {
 		return nil
 	}
 
-	for j, row := range rows {
+	for rowIndex, row := range rows {
 		if len(row) != s.SubsetSize {
 			return nil
 		}
 
-		for k, val := range row {
-			s.Values[(j*s.SubsetSize)+k].Value = val
+		for colIndex, val := range row {
+			// TODO: use Sudoku.Set() here
+			s.Values[(rowIndex*s.SubsetSize)+colIndex].Value = val
 		}
 	}
 
@@ -82,15 +83,15 @@ func (s *Sudoku) Solved() bool {
 
 func (s *Sudoku) obeysConstraints() bool {
 	for i := 0; i < s.SubsetSize; i++ {
-		if !s.Row(i).allValuesUnique() {
+		if !s.Row(i).AllValuesUnique() {
 			return false
 		}
 
-		if !s.Column(i).allValuesUnique() {
+		if !s.Column(i).AllValuesUnique() {
 			return false
 		}
 
-		if !s.Subgrid(i).allValuesUnique() {
+		if !s.Subgrid(i).AllValuesUnique() {
 			return false
 		}
 	}
@@ -272,6 +273,14 @@ func (gs *GridSquare) String() string {
 	return fmt.Sprintf("%v", pvList)
 }
 
+func (gs *GridSquare) Candidates() []int {
+	pvList := make([]int, 0)
+	for pv, _ := range gs.PossibleValues {
+		pvList = append(pvList, pv)
+	}
+	return pvList
+}
+
 func (gs *GridSquare) Current() string {
 	return ""
 }
@@ -280,6 +289,7 @@ func (gs *GridSquare) hasLegalValue() bool {
 	return gs.Value > 0 && gs.Value < 10
 }
 
+// Subset is a collection of squares - each row, column, and subgrid is a Subset
 type Subset []*GridSquare
 
 // MaskValue removes val from the PossibleValues of every GridSquare in the
@@ -293,7 +303,7 @@ func (ss Subset) MaskValue(i, val int) {
 	}
 }
 
-func (ss Subset) allValuesUnique() bool {
+func (ss Subset) AllValuesUnique() bool {
 	ssVals := make(map[int]int)
 
 	for _, i := range ss {

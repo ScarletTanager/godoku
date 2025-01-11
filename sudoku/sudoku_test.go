@@ -17,6 +17,30 @@ var _ = Describe("Sudoku", func() {
 		subsetSize int
 	)
 
+	rowsWithBlanks := [][]int{
+		{0, 0, 7, 8, 0, 3, 0, 2, 9},
+		{8, 9, 2, 0, 0, 5, 3, 0, 0},
+		{1, 0, 3, 0, 7, 9, 0, 8, 0},
+		{0, 8, 0, 6, 5, 0, 2, 0, 3},
+		{7, 2, 0, 0, 0, 0, 9, 0, 0},
+		{0, 0, 0, 0, 2, 0, 8, 0, 6},
+		{0, 0, 8, 4, 0, 2, 6, 1, 0},
+		{2, 0, 0, 0, 1, 0, 0, 9, 8},
+		{0, 5, 1, 0, 0, 0, 0, 0, 2},
+	}
+
+	solvedRows := [][]int{
+		{1, 9, 4, 2, 6, 8, 3, 7, 5},
+		{8, 5, 3, 9, 7, 4, 6, 1, 2},
+		{7, 2, 6, 3, 5, 1, 9, 8, 4},
+		{5, 1, 7, 8, 4, 3, 2, 9, 6},
+		{9, 4, 8, 1, 2, 6, 7, 5, 3},
+		{3, 6, 2, 7, 9, 5, 8, 4, 1},
+		{4, 7, 5, 6, 3, 9, 1, 2, 8},
+		{2, 3, 1, 5, 8, 7, 4, 6, 9},
+		{6, 8, 9, 4, 1, 2, 5, 3, 7},
+	}
+
 	BeforeEach(func() {
 		s = nil
 	})
@@ -110,20 +134,39 @@ var _ = Describe("Sudoku", func() {
 		})
 	})
 
+	Describe("Subset methods", func() {
+		BeforeEach(func() {
+			size = 3
+			s = sudoku.NewFromRows(size, rowsWithBlanks)
+			Expect(s).NotTo(BeNil())
+		})
+
+		Describe("MaskValue", func() {
+			var (
+				ss             sudoku.Subset
+				val, squareIdx int
+			)
+
+			BeforeEach(func() {
+				val = 6
+				squareIdx = 7
+				ss = s.Row(1)
+				Expect(ss[4].Candidates()).To(ContainElement(val))
+				Expect(ss[squareIdx].Candidates()).To(ContainElement(val))
+			})
+
+			It("Removes the value from the candidates of all squares other than the one specified", func() {
+				ss.MaskValue(7, val)
+				Expect(ss[4].Candidates()).NotTo(ContainElement(val))
+				Expect(ss[squareIdx].Candidates()).To(ContainElement(val))
+			})
+		})
+	})
+
 	Describe("Sudoku methods", func() {
 		BeforeEach(func() {
 			size = 3
-			initRows = [][]int{
-				{2, 7, 0, 4, 0, 8, 0, 0, 6},
-				{4, 0, 0, 0, 6, 0, 0, 0, 3},
-				{0, 9, 6, 7, 0, 2, 4, 0, 5},
-				{0, 6, 4, 5, 0, 0, 0, 0, 0},
-				{0, 0, 0, 9, 0, 0, 0, 0, 4},
-				{7, 1, 0, 6, 4, 3, 8, 5, 2},
-				{0, 0, 0, 0, 0, 5, 6, 0, 0},
-				{5, 0, 0, 0, 0, 6, 0, 3, 9},
-				{0, 2, 1, 0, 0, 4, 0, 0, 8},
-			}
+			initRows = rowsWithBlanks
 		})
 
 		JustBeforeEach(func() {
@@ -132,7 +175,56 @@ var _ = Describe("Sudoku", func() {
 		})
 
 		Describe("Solved", func() {
+			When("Some squares do not have values", func() {
+				It("Returns false", func() {
+					Expect(s.Solved()).To(BeFalse())
+				})
+			})
 
+			When("All squares have values", func() {
+				BeforeEach(func() {
+					// This is a valid solved sudoku from the NYT
+					initRows = [][]int{
+						{7, 8, 9, 2, 6, 4, 5, 1, 3},
+						{2, 3, 6, 9, 1, 5, 7, 8, 4},
+						{5, 4, 1, 8, 7, 3, 6, 2, 9},
+						{8, 5, 7, 4, 9, 2, 3, 6, 1},
+						{4, 6, 2, 7, 3, 1, 9, 5, 8},
+						{1, 9, 3, 6, 5, 8, 2, 4, 7},
+						{3, 2, 8, 5, 4, 7, 1, 9, 6},
+						{9, 7, 4, 1, 2, 6, 8, 3, 5},
+						{6, 1, 5, 3, 8, 9, 4, 7, 2},
+					}
+				})
+
+				When("And no constraints are violated", func() {
+					It("Returns true", func() {
+						Expect(s.Solved()).To(BeTrue())
+					})
+				})
+
+				When("The same value occurs twice within a column", func() {
+					BeforeEach(func() {
+						initRows[8][7] = 2
+						initRows[8][8] = 7
+					})
+
+					It("Returns false", func() {
+						Expect(s.Solved()).To(BeFalse())
+					})
+				})
+
+				When("The same value occurs twice within a row", func() {
+					BeforeEach(func() {
+						initRows[7][8] = 2
+						initRows[8][8] = 5
+					})
+
+					It("Returns false", func() {
+						Expect(s.Solved()).To(BeFalse())
+					})
+				})
+			})
 		})
 
 		Describe("Row", func() {
@@ -176,9 +268,9 @@ var _ = Describe("Sudoku", func() {
 			BeforeEach(func() {
 				l = 4
 				expectedVals = []int{
-					5, 0, 0,
-					9, 0, 0,
-					6, 4, 3}
+					6, 5, 0,
+					0, 0, 0,
+					0, 2, 0}
 			})
 
 			It("Returns the lth grid left to right, top to bottom", func() {
@@ -207,17 +299,7 @@ var _ = Describe("Sudoku", func() {
 
 			When("The puzzle has been solved", func() {
 				BeforeEach(func() {
-					initRows = [][]int{
-						{1, 9, 4, 2, 6, 8, 3, 7, 5},
-						{8, 5, 3, 9, 7, 4, 6, 1, 2},
-						{7, 2, 6, 3, 5, 1, 9, 8, 4},
-						{5, 1, 7, 8, 4, 3, 2, 9, 6},
-						{9, 4, 8, 1, 2, 6, 7, 5, 3},
-						{3, 6, 2, 7, 9, 5, 8, 4, 1},
-						{4, 7, 5, 6, 3, 9, 1, 2, 8},
-						{2, 3, 1, 5, 8, 7, 4, 6, 9},
-						{6, 8, 9, 4, 1, 2, 5, 3, 7},
-					}
+					initRows = solvedRows
 				})
 
 				It("Returns true", func() {
