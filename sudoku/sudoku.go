@@ -61,8 +61,7 @@ func NewFromRows(size int, rows [][]int) *Sudoku {
 		}
 
 		for colIndex, val := range row {
-			// TODO: use Sudoku.Set() here
-			s.Values[(rowIndex*s.SubsetSize)+colIndex].Value = val
+			s.Set(rowIndex, colIndex, val)
 		}
 	}
 
@@ -165,7 +164,7 @@ func (s *Sudoku) String() string {
 	return ""
 }
 
-// PrintCurrent prints the current state of the sudoku
+// Current prints the current state of the sudoku
 func (s *Sudoku) Current() string {
 	var current strings.Builder
 
@@ -250,7 +249,7 @@ func (gs *GridSquare) Constrain(possibles []int) {
 	for v, _ := range gs.PossibleValues {
 		// If the value is not in the list of candidates passed in, delete it
 		if _, ok := candidates[v]; !ok {
-			delete(gs.PossibleValues, v)
+			gs.RemoveCandidate(v)
 		}
 	}
 }
@@ -265,12 +264,7 @@ func (gs *GridSquare) String() string {
 		return fmt.Sprintf("**%d**", gs.Value)
 	}
 
-	pvList := make([]int, 0)
-	for pv, _ := range gs.PossibleValues {
-		pvList = append(pvList, pv)
-	}
-
-	return fmt.Sprintf("%v", pvList)
+	return fmt.Sprintf("%v", gs.Candidates())
 }
 
 func (gs *GridSquare) Candidates() []int {
@@ -303,6 +297,8 @@ func (ss Subset) MaskValue(i, val int) {
 	}
 }
 
+// AllValuesUnique returns false if there are any nonzero duplicate values, true otherwise.
+// This means that the caller is responsible for verifying that the subset is fully populated.
 func (ss Subset) AllValuesUnique() bool {
 	ssVals := make(map[int]int)
 

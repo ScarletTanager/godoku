@@ -76,6 +76,85 @@ var _ = Describe("Sudoku", func() {
 		})
 	})
 
+	Describe("NewFromRows", func() {
+		var (
+			ss sudoku.Subset
+		)
+
+		BeforeEach(func() {
+			size = 3
+		})
+
+		JustBeforeEach(func() {
+			Expect(s).NotTo(BeNil())
+		})
+
+		When("Some squares are unset", func() {
+			BeforeEach(func() {
+				s = sudoku.NewFromRows(size, rowsWithBlanks)
+			})
+
+			// Test that the unset squares have any values set within the same row/column/subgrid
+			// removed from their list of candidates/possible values
+			It("Constrains the unset squares in each row", func() {
+				for idx := 0; idx < s.SubsetSize; idx++ {
+					ss = s.Row(idx)
+
+					setValues := make([]int, 0)
+					for _, gs := range ss {
+						if gs.Value != 0 {
+							setValues = append(setValues, gs.Value)
+						}
+					}
+
+					for _, gs := range ss {
+						if gs.Value == 0 {
+							Expect(gs.Candidates()).NotTo(ContainElements(setValues))
+						}
+					}
+				}
+			})
+
+			It("Constrains the unset squares in each column", func() {
+				for idx := 0; idx < s.SubsetSize; idx++ {
+					ss = s.Column(idx)
+
+					setValues := make([]int, 0)
+					for _, gs := range ss {
+						if gs.Value != 0 {
+							setValues = append(setValues, gs.Value)
+						}
+					}
+
+					for _, gs := range ss {
+						if gs.Value == 0 {
+							Expect(gs.Candidates()).NotTo(ContainElements(setValues))
+						}
+					}
+				}
+			})
+
+			It("Constrains the unset squares in each subgrid", func() {
+				for idx := 0; idx < s.SubsetSize; idx++ {
+					ss = s.Subgrid(idx)
+
+					setValues := make([]int, 0)
+					for _, gs := range ss {
+						if gs.Value != 0 {
+							setValues = append(setValues, gs.Value)
+						}
+					}
+
+					for _, gs := range ss {
+						if gs.Value == 0 {
+							Expect(gs.Candidates()).NotTo(ContainElements(setValues))
+						}
+					}
+				}
+			})
+		})
+	})
+
 	Describe("SubgridIndex", func() {
 		var (
 			subgridIndices [][]int
@@ -135,15 +214,21 @@ var _ = Describe("Sudoku", func() {
 	})
 
 	Describe("Subset methods", func() {
+		var (
+			ss sudoku.Subset
+		)
+
 		BeforeEach(func() {
 			size = 3
 			s = sudoku.NewFromRows(size, rowsWithBlanks)
+		})
+
+		JustBeforeEach(func() {
 			Expect(s).NotTo(BeNil())
 		})
 
 		Describe("MaskValue", func() {
 			var (
-				ss             sudoku.Subset
 				val, squareIdx int
 			)
 
@@ -159,6 +244,44 @@ var _ = Describe("Sudoku", func() {
 				ss.MaskValue(7, val)
 				Expect(ss[4].Candidates()).NotTo(ContainElement(val))
 				Expect(ss[squareIdx].Candidates()).To(ContainElement(val))
+			})
+		})
+
+		Describe("AllValuesUnique", func() {
+			BeforeEach(func() {
+				s = sudoku.NewFromRows(size, solvedRows)
+			})
+
+			JustBeforeEach(func() {
+				ss = s.Row(1)
+			})
+
+			When("The subset is composed of unique values", func() {
+				It("Returns true", func() {
+					Expect(ss.AllValuesUnique()).To(BeTrue())
+				})
+			})
+
+			When("The subset contains duplicate values", func() {
+				When("But the duplicate values are all zeroes", func() {
+					BeforeEach(func() {
+						s = sudoku.NewFromRows(size, rowsWithBlanks)
+					})
+
+					It("Returns true", func() {
+						Expect(ss.AllValuesUnique()).To(BeTrue())
+					})
+				})
+
+				When("And the duplicate values are nonzero", func() {
+					JustBeforeEach(func() {
+						ss[0].Value = 5
+					})
+
+					It("Returns false", func() {
+						Expect(ss.AllValuesUnique()).To(BeFalse())
+					})
+				})
 			})
 		})
 	})
@@ -314,7 +437,7 @@ var _ = Describe("Sudoku", func() {
 			)
 
 			BeforeEach(func() {
-				j = 3
+				j = 4
 				k = 4
 				val = 8
 			})
